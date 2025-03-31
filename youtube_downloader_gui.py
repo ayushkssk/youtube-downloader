@@ -235,6 +235,7 @@ class VideoDownloaderGUI:
                 "quiet": True,
                 "no_warnings": True,
                 "extract_flat": False,
+                "format": "best",  # Request best format to get all format info
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -254,22 +255,42 @@ class VideoDownloaderGUI:
                 max_height = 0
                 max_fps = 0
                 is_hdr = False
+                dynamic_range = ""
+                
+                # Debug log all formats
+                self.log_text.delete(1.0, tk.END)
+                self.log_text.insert(tk.END, "Available formats:\n")
                 
                 # First pass: find the best quality available
                 for f in formats:
-                    if f.get('vcodec') != 'none':
+                    # Debug log format details
+                    format_note = f.get('format_note', '')
+                    height = f.get('height', 0)
+                    fps = f.get('fps', 0)
+                    vcodec = f.get('vcodec', 'none')
+                    acodec = f.get('acodec', 'none')
+                    
+                    self.log_text.insert(tk.END, 
+                        f"Format: {format_note}, Height: {height}, "
+                        f"FPS: {fps}, Video: {vcodec}, Audio: {acodec}\n"
+                    )
+                    
+                    if vcodec != 'none':
                         has_video = True
-                        height = f.get('height', 0)
-                        fps = f.get('fps', 0)
                         # Check for HDR
-                        if any(x in str(f.get('vcodec', '')).lower() for x in ['vp9.2', 'hdr', 'av01']):
+                        if any(x in str(vcodec).lower() for x in ['vp9.2', 'hdr', 'av01']):
                             is_hdr = True
+                        # Check dynamic range from format note
+                        if 'HDR' in format_note:
+                            dynamic_range = "HDR"
+                        elif 'Dolby Vision' in format_note:
+                            dynamic_range = "Dolby Vision"
                         # Update max values
                         if height > max_height:
                             max_height = height
                         if fps > max_fps:
                             max_fps = fps
-                    if f.get('acodec') != 'none':
+                    if acodec != 'none':
                         has_audio = True
                 
                 # Set format information
@@ -290,8 +311,10 @@ class VideoDownloaderGUI:
                     else:
                         quality_label = f"{max_height}p"
                     
-                    # Add HDR indicator if present
-                    if is_hdr:
+                    # Add dynamic range indicator
+                    if dynamic_range:
+                        quality_label += f" {dynamic_range}"
+                    elif is_hdr:
                         quality_label += " HDR"
                     
                     # Always show FPS
@@ -311,7 +334,9 @@ class VideoDownloaderGUI:
                     else:
                         quality_label = f"{max_height}p"
                     
-                    if is_hdr:
+                    if dynamic_range:
+                        quality_label += f" {dynamic_range}"
+                    elif is_hdr:
                         quality_label += " HDR"
                         
                     fps_text = f" {max_fps}FPS"
@@ -329,7 +354,7 @@ class VideoDownloaderGUI:
                     # Adjust size estimation based on resolution, FPS, and HDR
                     base_size = max_height * 0.5  # Base size for 30fps SDR
                     fps_multiplier = max_fps / 30 if max_fps > 30 else 1
-                    hdr_multiplier = 1.5 if is_hdr else 1  # HDR content is typically larger
+                    hdr_multiplier = 1.5 if (is_hdr or dynamic_range) else 1
                     video_size = base_size * fps_multiplier * hdr_multiplier
                     audio_size = 10 if has_audio else 0
                     total_size = video_size + audio_size
@@ -351,6 +376,8 @@ class VideoDownloaderGUI:
             self.size_var.set("")
             self.format_var.set("")
             self.platform_var.set("")
+            self.log_text.delete(1.0, tk.END)
+            self.log_text.insert(tk.END, f"Error: {str(e)}\n")
 
     def play_video(self):
         """Play the downloaded video using the system's default video player"""
