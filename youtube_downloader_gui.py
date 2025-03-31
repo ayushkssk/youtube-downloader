@@ -249,27 +249,62 @@ class VideoDownloaderGUI:
                 
                 # Get format info
                 formats = self.video_info.get('formats', [])
-                best_format = None
                 has_video = False
                 has_audio = False
                 max_height = 0
+                max_fps = 0
                 
                 # Check available streams
                 for f in formats:
                     if f.get('vcodec') != 'none':
                         has_video = True
                         height = f.get('height', 0)
+                        fps = f.get('fps', 0)
                         if height > max_height:
                             max_height = height
+                        if fps > max_fps:
+                            max_fps = fps
                     if f.get('acodec') != 'none':
                         has_audio = True
                 
                 # Set format information
                 format_text = ""
                 if has_video and has_audio:
-                    format_text = f"🎥+🔊 Video+Audio ({max_height}p)"
+                    # Determine quality label
+                    quality_label = ""
+                    if max_height >= 8000:
+                        quality_label = "8K"
+                    elif max_height >= 4000:
+                        quality_label = "4K"
+                    elif max_height >= 2000:
+                        quality_label = "2K"
+                    elif max_height >= 1080:
+                        quality_label = f"{max_height}p"
+                    else:
+                        quality_label = f"{max_height}p"
+                    
+                    # Add FPS if it's higher than standard
+                    fps_text = ""
+                    if max_fps > 30:
+                        fps_text = f" {max_fps}FPS"
+                    
+                    format_text = f"🎥+🔊 Video+Audio ({quality_label}{fps_text})"
                 elif has_video:
-                    format_text = f"🎥 Video Only ({max_height}p)"
+                    quality_label = ""
+                    if max_height >= 8000:
+                        quality_label = "8K"
+                    elif max_height >= 4000:
+                        quality_label = "4K"
+                    elif max_height >= 2000:
+                        quality_label = "2K"
+                    else:
+                        quality_label = f"{max_height}p"
+                        
+                    fps_text = ""
+                    if max_fps > 30:
+                        fps_text = f" {max_fps}FPS"
+                        
+                    format_text = f"🎥 Video Only ({quality_label}{fps_text})"
                 elif has_audio:
                     format_text = "🔊 Audio Only"
                 else:
@@ -279,9 +314,13 @@ class VideoDownloaderGUI:
                 
                 # Calculate and set size information
                 if has_video:
-                    video_size = max_height * 0.5  # Rough estimate: 0.5 MB per pixel of height
+                    # Adjust size estimation based on resolution and FPS
+                    base_size = max_height * 0.5  # Base size for 30fps
+                    fps_multiplier = max_fps / 30 if max_fps > 30 else 1  # Adjust size for high FPS
+                    video_size = base_size * fps_multiplier
                     audio_size = 10 if has_audio else 0  # Rough estimate for audio
                     total_size = video_size + audio_size
+                    
                     size_text = f"💾 ~{total_size:.1f} MB"
                     if has_video and has_audio:
                         size_text += " (Video+Audio)"
