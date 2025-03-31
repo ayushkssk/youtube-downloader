@@ -234,7 +234,7 @@ class VideoDownloaderGUI:
             ydl_opts = {
                 "quiet": True,
                 "no_warnings": True,
-                "extract_flat": False,  # Changed to False to get full format info
+                "extract_flat": False,
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -253,13 +253,18 @@ class VideoDownloaderGUI:
                 has_audio = False
                 max_height = 0
                 max_fps = 0
+                is_hdr = False
                 
-                # Check available streams
+                # First pass: find the best quality available
                 for f in formats:
                     if f.get('vcodec') != 'none':
                         has_video = True
                         height = f.get('height', 0)
                         fps = f.get('fps', 0)
+                        # Check for HDR
+                        if any(x in str(f.get('vcodec', '')).lower() for x in ['vp9.2', 'hdr', 'av01']):
+                            is_hdr = True
+                        # Update max values
                         if height > max_height:
                             max_height = height
                         if fps > max_fps:
@@ -272,7 +277,9 @@ class VideoDownloaderGUI:
                 if has_video and has_audio:
                     # Determine quality label
                     quality_label = ""
-                    if max_height >= 8000:
+                    if max_height >= 15000:
+                        quality_label = "16K"
+                    elif max_height >= 8000:
                         quality_label = "8K"
                     elif max_height >= 4000:
                         quality_label = "4K"
@@ -283,15 +290,19 @@ class VideoDownloaderGUI:
                     else:
                         quality_label = f"{max_height}p"
                     
-                    # Add FPS if it's higher than standard
-                    fps_text = ""
-                    if max_fps > 30:
-                        fps_text = f" {max_fps}FPS"
+                    # Add HDR indicator if present
+                    if is_hdr:
+                        quality_label += " HDR"
+                    
+                    # Always show FPS
+                    fps_text = f" {max_fps}FPS"
                     
                     format_text = f"🎥+🔊 Video+Audio ({quality_label}{fps_text})"
                 elif has_video:
                     quality_label = ""
-                    if max_height >= 8000:
+                    if max_height >= 15000:
+                        quality_label = "16K"
+                    elif max_height >= 8000:
                         quality_label = "8K"
                     elif max_height >= 4000:
                         quality_label = "4K"
@@ -299,11 +310,12 @@ class VideoDownloaderGUI:
                         quality_label = "2K"
                     else:
                         quality_label = f"{max_height}p"
+                    
+                    if is_hdr:
+                        quality_label += " HDR"
                         
-                    fps_text = ""
-                    if max_fps > 30:
-                        fps_text = f" {max_fps}FPS"
-                        
+                    fps_text = f" {max_fps}FPS"
+                    
                     format_text = f"🎥 Video Only ({quality_label}{fps_text})"
                 elif has_audio:
                     format_text = "🔊 Audio Only"
@@ -314,11 +326,12 @@ class VideoDownloaderGUI:
                 
                 # Calculate and set size information
                 if has_video:
-                    # Adjust size estimation based on resolution and FPS
-                    base_size = max_height * 0.5  # Base size for 30fps
-                    fps_multiplier = max_fps / 30 if max_fps > 30 else 1  # Adjust size for high FPS
-                    video_size = base_size * fps_multiplier
-                    audio_size = 10 if has_audio else 0  # Rough estimate for audio
+                    # Adjust size estimation based on resolution, FPS, and HDR
+                    base_size = max_height * 0.5  # Base size for 30fps SDR
+                    fps_multiplier = max_fps / 30 if max_fps > 30 else 1
+                    hdr_multiplier = 1.5 if is_hdr else 1  # HDR content is typically larger
+                    video_size = base_size * fps_multiplier * hdr_multiplier
+                    audio_size = 10 if has_audio else 0
                     total_size = video_size + audio_size
                     
                     size_text = f"💾 ~{total_size:.1f} MB"
